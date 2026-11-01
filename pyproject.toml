@@ -1,0 +1,49 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "grumble"
+version = "0.1.0"
+description = "Talk while you playtest, and get proposed bug reports and feature requests"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.12"
+classifiers = ["Operating System :: Microsoft :: Windows"]
+dependencies = [
+    "anthropic>=2.3",
+    "av>=19",
+    "faster-whisper==1.2.1",
+    "jsonschema>=4.20",
+    "mss>=10",
+    "numpy>=2",
+    "pillow>=11",
+    "python-dotenv>=1",
+    "pyyaml>=6",
+    "sounddevice>=0.5",
+    "soundfile>=0.13",
+    "soxr>=0.5",
+]
+
+[project.optional-dependencies]
+cuda = [
+    "nvidia-cublas-cu12==12.9.2.10", # newest release with a Windows wheel
+    "nvidia-cudnn-cu12==9.27.0.42",
+]
+dev = ["pytest>=8"]
+
+[project.scripts]
+grumble = "grumble.cli:main"
+
+[project.urls]
+Repository = "https://github.com/jojojobring/grumble"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+grumble = ["*.html", "*.yaml"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

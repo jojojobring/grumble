@@ -1,0 +1,18 @@
+name: __NAME__
+description: "" # one line about your game; it helps sort your comments
+
+# Pick a key your game doesn't need. The game won't receive it while Grumble runs, and gets it back
+# if Grumble exits, so avoid keys like Skyrim's F9 quickload.
+hotkey: f9
+
+tracker:
+  __TRACKER__
+
+audio:
+  device: null # null uses the mic chosen in `grumble setup`; or part of a name from `grumble devices`
+
+# Words Whisper mishears, such as character and item names. It reads about 224 tokens of this.
+vocabulary: []
+
+gamestate:
+  type: none # none | http | file

@@ -1,0 +1,286 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Grumble Setup</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f6f5f2; --card: #ffffff; --text: #22211f; --muted: #6b6862; --line: #dedbd4;
+    --accent: #2f5fd0; --accent-text: #ffffff; --good: #1d7a46; --bad: #b3362b; --warn-bg: #fbf1d9; --warn-text: #6d5310;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1a1a18; --card: #252523; --text: #ecebe7; --muted: #a5a29b; --line: #3b3a36;
+      --accent: #7ba0f5; --accent-text: #10131a; --good: #5cc98b; --bad: #f0887c; --warn-bg: #3a3119; --warn-text: #ecd591;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.5 "Segoe UI", system-ui, sans-serif; }
+  main { max-width: 620px; margin: 0 auto; padding: 40px 16px 56px; }
+  h1 { font-size: 28px; margin: 0 0 4px; }
+  .lead { color: var(--muted); margin: 0 0 28px; }
+  section { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 20px; margin-bottom: 16px; }
+  .head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+  h2 { font-size: 18px; margin: 0; }
+  .state { font-size: 14px; font-weight: 600; color: var(--muted); white-space: nowrap; }
+  .state.good { color: var(--good); }
+  .state.bad { color: var(--bad); }
+  .detail { color: var(--muted); font-size: 14px; margin: 4px 0 0; }
+  ul { list-style: none; margin: 8px 0 0; padding: 0; font-size: 14px; }
+  li { padding: 2px 0; overflow-wrap: anywhere; }
+  li.bad { color: var(--bad); }
+  li.good { color: var(--good); }
+  ol { margin: 12px 0; padding-left: 20px; font-size: 15px; }
+  label { display: block; font-size: 14px; font-weight: 600; margin: 12px 0 4px; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; }
+  input, select { flex: 1 1 240px; min-width: 0; padding: 9px 11px; font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; }
+  button { padding: 9px 16px; font: inherit; font-weight: 600; border-radius: 6px; border: 1px solid var(--accent); background: var(--accent); color: var(--accent-text); cursor: pointer; }
+  button.quiet { background: transparent; color: var(--accent); }
+  button:disabled { opacity: .55; cursor: default; }
+  a { color: var(--accent); }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .error { color: var(--bad); font-size: 14px; margin: 8px 0 0; }
+  .note { background: var(--warn-bg); color: var(--warn-text); font-size: 14px; border-radius: 6px; padding: 8px 11px; margin: 12px 0 0; }
+  .divider { color: var(--muted); font-size: 14px; margin: 14px 0 0; }
+  .foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-top: 20px; }
+  .privacy { color: var(--muted); font-size: 13px; flex: 1 1 280px; margin: 0; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Grumble setup</h1>
+  <p class="lead">Connect your accounts and choose a mic to turn your playtest comments into issues.</p>
+
+  <section aria-labelledby="claude-title">
+    <div class="head"><h2 id="claude-title">1. Claude API key</h2><span class="state" id="claude-state" role="status">Checking...</span></div>
+    <p class="detail" id="claude-detail">Used to sort your comments into proposed issues.</p>
+    <button class="quiet" id="claude-replace" hidden style="margin-top:12px">Use a different key</button>
+    <form id="claude-form" hidden>
+      <ol>
+        <li>Open <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">your Anthropic API keys</a>.</li>
+        <li>Create a key and copy it.</li>
+        <li>Paste it here.</li>
+      </ol>
+      <label for="claude-key">API key</label>
+      <div class="row">
+        <input id="claude-key" type="password" autocomplete="off" spellcheck="false">
+        <button type="submit">Check and save</button>
+      </div>
+    </form>
+    <p class="error" id="claude-error" role="alert" hidden></p>
+    <p class="note" id="claude-note" hidden></p>
+  </section>
+
+  <section aria-labelledby="github-title">
+    <div class="head"><h2 id="github-title">2. GitHub</h2><span class="state" id="github-state" role="status">Checking...</span></div>
+    <p class="detail" id="github-detail">Used to file the issues you approve. Nothing is filed without your approval.</p>
+    <ul id="github-repos"></ul>
+    <button class="quiet" id="github-replace" hidden style="margin-top:12px">Use a different token</button>
+    <div id="github-connect" hidden>
+      <div id="github-cli" hidden>
+        <p class="detail" style="margin-top:14px">Sign in through the browser. A small window opens first; follow its prompts. This page updates once you finish.</p>
+        <button id="github-login" style="margin-top:10px">Connect GitHub</button>
+        <p class="divider">Or use a token instead:</p>
+      </div>
+      <form id="github-form">
+        <ol>
+          <li>Open <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">GitHub's new token page</a>.</li>
+          <li>Choose your game's repository, then allow read and write for <strong>Issues</strong> and <strong>Contents</strong>. Contents is for uploading screenshots.</li>
+          <li>Generate the token and paste it here.</li>
+        </ol>
+        <label for="github-token">Token</label>
+        <div class="row">
+          <input id="github-token" type="password" autocomplete="off" spellcheck="false">
+          <button type="submit">Check and save</button>
+        </div>
+      </form>
+    </div>
+    <p class="error" id="github-error" role="alert" hidden></p>
+    <p class="note" id="github-note" hidden></p>
+  </section>
+
+  <section aria-labelledby="mic-title">
+    <div class="head"><h2 id="mic-title">3. Microphone</h2><span class="state" id="mic-state" role="status"></span></div>
+    <p class="detail">Used to record what you say while you play.</p>
+    <label for="mic-select">Mic</label>
+    <div class="row">
+      <select id="mic-select"></select>
+      <button id="mic-test" class="quiet">Test mic</button>
+    </div>
+    <p class="detail" id="mic-result" role="status" hidden></p>
+    <ul id="mic-overrides"></ul>
+    <p class="error" id="mic-error" role="alert" hidden></p>
+  </section>
+
+  <div class="foot">
+    <p class="privacy">Anything you paste stays in a <code>.env</code> file in your user folder (<code>%APPDATA%\Grumble</code>). It's only sent to Anthropic or GitHub.</p>
+    <button id="finish" class="quiet">Close setup</button>
+  </div>
+  <p class="detail" id="closed" role="status" hidden>Setup is closed. You can close this tab.</p>
+</main>
+<script>
+  const TOKEN = "__TOKEN__";
+  const $ = (id) => document.getElementById(id);
+
+  async function api(path, value) {
+    const options = { headers: { "X-Grumble-Token": TOKEN } };
+    if (arguments.length > 1) {
+      options.method = "POST";
+      options.headers["Content-Type"] = "application/json";
+      options.body = JSON.stringify({ value });
+    }
+    const response = await fetch(path, options);
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Something went wrong.");
+    return data;
+  }
+
+  function show(id, text) {
+    const element = $(id);
+    element.textContent = text || "";
+    element.hidden = !text;
+  }
+
+  function setState(prefix, status) {
+    const state = $(prefix + "-state");
+    state.textContent = status.connected ? "Connected" : "Not connected";
+    state.className = "state " + (status.connected ? "good" : "bad");
+    const from = status.connected && status.source ? " From your " + status.source + "." : "";
+    $(prefix + "-detail").textContent = status.detail + from;
+  }
+
+  async function loadClaude() {
+    try {
+      const status = await api("/api/status/anthropic");
+      setState("claude", status);
+      $("claude-form").hidden = status.connected;
+      $("claude-replace").hidden = !status.connected;
+    } catch (error) { show("claude-error", error.message); }
+  }
+
+  let poll = null;
+  async function loadGithub() {
+    try {
+      const status = await api("/api/status/github");
+      setState("github", status);
+      $("github-connect").hidden = status.connected;
+      $("github-replace").hidden = !status.connected;
+      $("github-cli").hidden = !status.gh_installed;
+      $("github-login").disabled = status.login_running;
+      $("github-login").textContent = status.login_running ? "Waiting for sign-in..." : "Connect GitHub";
+      const list = $("github-repos");
+      list.replaceChildren(...status.repos.map((item) => {
+        const row = document.createElement("li");
+        row.className = item.ok ? "good" : "bad";
+        row.textContent = item.repo + ": " + item.detail;
+        return row;
+      }));
+      if (poll && (status.connected || !status.login_running)) { clearInterval(poll); poll = null; }
+    } catch (error) { show("github-error", error.message); }
+  }
+
+  function wireForm(formId, inputId, prefix, path, reload) {
+    $(formId).addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const input = $(inputId);
+      const button = event.target.querySelector("button");
+      show(prefix + "-error", "");
+      show(prefix + "-note", "");
+      button.disabled = true;
+      button.textContent = "Checking...";
+      try {
+        const result = await api(path, input.value);
+        input.value = "";
+        if (result.overridden) {
+          show(prefix + "-note", "Saved and working, but a different value in your system environment variables takes priority. Update or remove that variable to use this one.");
+        }
+        await reload();
+      } catch (error) {
+        show(prefix + "-error", error.message);
+      }
+      button.disabled = false;
+      button.textContent = "Check and save";
+    });
+  }
+
+  wireForm("claude-form", "claude-key", "claude", "/api/anthropic", loadClaude);
+  wireForm("github-form", "github-token", "github", "/api/github/token", loadGithub);
+
+  $("claude-replace").addEventListener("click", () => { $("claude-form").hidden = false; $("claude-replace").hidden = true; $("claude-key").focus(); });
+  $("github-replace").addEventListener("click", () => { $("github-connect").hidden = false; $("github-cli").hidden = true; $("github-replace").hidden = true; $("github-token").focus(); });
+
+  $("github-login").addEventListener("click", async () => {
+    show("github-error", "");
+    try {
+      await api("/api/github/login", "");
+      await loadGithub();
+      if (!poll) poll = setInterval(loadGithub, 3000);
+    } catch (error) { show("github-error", error.message); }
+  });
+
+  async function loadMic() {
+    try {
+      const status = await api("/api/status/mic");
+      const windowsDefault = status.devices.find((device) => device.is_default);
+      const options = [["", "Windows default" + (windowsDefault ? " (" + windowsDefault.name + ")" : "")]];
+      status.devices.forEach((device) => options.push([device.name, device.name]));
+      const select = $("mic-select");
+      select.replaceChildren(...options.map(([value, text]) => {
+        const option = document.createElement("option");
+        option.value = value;
+        option.textContent = text;
+        return option;
+      }));
+      select.value = status.selected || "";
+      if (select.value !== (status.selected || "")) show("mic-error", "Your saved mic, " + status.selected + ", isn't plugged in.");
+      $("mic-overrides").replaceChildren(...status.overrides.map((item) => {
+        const row = document.createElement("li");
+        row.textContent = item.project + " uses its own mic setting (" + item.device + "), so this choice won't affect it.";
+        return row;
+      }));
+    } catch (error) { show("mic-error", error.message); }
+  }
+
+  $("mic-select").addEventListener("change", async (event) => {
+    show("mic-error", "");
+    show("mic-result", "");
+    $("mic-state").textContent = "";
+    try {
+      await api("/api/mic", event.target.value);
+      $("mic-state").textContent = "Saved";
+      $("mic-state").className = "state good";
+    } catch (error) { show("mic-error", error.message); }
+  });
+
+  $("mic-test").addEventListener("click", async () => {
+    const button = $("mic-test");
+    show("mic-error", "");
+    show("mic-result", "Listening for 3 seconds. Say something...");
+    button.disabled = true;
+    try {
+      const { peak } = await api("/api/mic/test", $("mic-select").value);
+      if (peak < 0.0001) show("mic-result", "No signal at all. The mic may be muted or switched off.");
+      else if (peak < 0.02) show("mic-result", "Very quiet. If you were talking, check the mic's position and input volume.");
+      else show("mic-result", "The mic is picking up sound. Good to go if you were talking.");
+    } catch (error) {
+      show("mic-result", "");
+      show("mic-error", error.message);
+    }
+    button.disabled = false;
+  });
+
+  $("finish").addEventListener("click", async () => {
+    await api("/api/finish", "");
+    $("finish").disabled = true;
+    $("closed").hidden = false;
+  });
+
+  loadClaude();
+  loadGithub();
+  loadMic();
+</script>
+</body>
+</html>
