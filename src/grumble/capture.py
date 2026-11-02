@@ -4,7 +4,9 @@ import ctypes
 import math
 import time
 import winsound
+from collections.abc import Callable
 from dataclasses import dataclass
+from typing import Any
 
 from grumble.config import ProjectConfig
 from grumble.hotkey import Hotkey
@@ -36,7 +38,11 @@ def _meter(peak: float) -> str:
     return f"{20 * math.log10(peak):5.0f} dB"
 
 
-def run_capture(config: ProjectConfig, max_seconds: float | None = None) -> CaptureResult:
+def run_capture(
+    config: ProjectConfig,
+    max_seconds: float | None = None,
+    on_status: Callable[[dict[str, Any]], None] | None = None,
+) -> CaptureResult:
     _set_dpi_aware()
     lock = ActiveLock()
     if active := lock.read():
@@ -68,7 +74,7 @@ def run_capture(config: ProjectConfig, max_seconds: float | None = None) -> Capt
         print(f"  mic:    {recorder.device_name}")
         print(f"  marker: {config.hotkey.upper()}")
         print("  stop:   Ctrl+C here, or `grumble stop` from another terminal")
-        _wait(lock, recorder, markers, max_seconds)
+        _wait(lock, recorder, markers, max_seconds, session, on_status)
     except BaseException:
         if not started:
             session.update_manifest(status="failed", ended_at=now_iso())
@@ -95,7 +101,14 @@ def run_capture(config: ProjectConfig, max_seconds: float | None = None) -> Capt
     return CaptureResult(session, recorder.duration_seconds, markers.count)
 
 
-def _wait(lock: ActiveLock, recorder: Recorder, markers: MarkerWorker, max_seconds: float | None) -> None:
+def _wait(
+    lock: ActiveLock,
+    recorder: Recorder,
+    markers: MarkerWorker,
+    max_seconds: float | None,
+    session: Session,
+    on_status: Callable[[dict[str, Any]], None] | None,
+) -> None:
     started = time.monotonic()
     loudest = 0.0
     warned_silent = False
@@ -121,5 +134,17 @@ def _wait(lock: ActiveLock, recorder: Recorder, markers: MarkerWorker, max_secon
             if not warned_silent and elapsed > _SILENT_MIC_WARNING_SECONDS and loudest < 1e-4:
                 warned_silent = True
                 print(f"\nWarning: no signal from '{recorder.device_name}' in {_SILENT_MIC_WARNING_SECONDS}s. Check the mic.")
+            if on_status:
+                on_status(
+                    {
+                        "session": session.id,
+                        "elapsed": int(elapsed),
+                        "level": peak,
+                        "markers": markers.count,
+                        "mic": recorder.device_name,
+                        "no_signal": warned_silent,
+                        "screenshot_warning": markers.last_warning,
+                    }
+                )
     except KeyboardInterrupt:
         pass

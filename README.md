@@ -3,15 +3,30 @@
 Talk out loud while you playtest your game. Grumble records the session, transcribes it on your
 machine, and uses Claude to turn what you said into proposed bug reports and feature requests.
 
-Filing approved issues to GitHub isn't built yet. For now, you read the proposals as JSON or CSV.
+You review each proposal, edit it, and file the ones you approve as GitHub issues. Nothing is filed
+without your approval. Without GitHub, you can save approved issues to a file instead.
 
-**Requires:** Windows, Python 3.12 or newer, and a microphone. An NVIDIA GPU is optional but gives
-better transcripts. Writing proposals needs an [Anthropic API key](https://console.anthropic.com/settings/keys),
-at roughly $0.07 for a 10-minute session.
+**Requires:** Windows and a microphone. An NVIDIA GPU is optional but gives better transcripts.
+Writing proposals needs an [Anthropic API key](https://console.anthropic.com/settings/keys), at
+roughly $0.07 for a 10-minute session.
 
 ## Install
 
-With [pipx](https://pipx.pypa.io/):
+1. Download **Install Grumble.cmd** from the [latest release](https://github.com/jojojobring/grumble/releases/latest).
+2. Double-click it. If Windows SmartScreen warns you, choose **More info**, then **Run anyway**.
+3. Open **Grumble** from your Desktop or Start Menu.
+
+The first launch walks you through your Claude key, GitHub and your mic. Then choose your game's
+folder and press **Start session**, or press F8 from inside your game. F9 marks a moment and takes
+a screenshot, and you can change either key in the app. When you stop, Grumble transcribes the
+session and proposes issues on its own.
+
+The install goes in `%LOCALAPPDATA%\Grumble`, including its own copy of Python. To remove Grumble,
+delete that folder, `%APPDATA%\Grumble` and the two shortcuts.
+
+## Command line
+
+To use Grumble from a terminal instead, you need Python 3.12 or newer and [pipx](https://pipx.pypa.io/):
 
 ```powershell
 # NVIDIA GPU (downloads about 1.2 GB of CUDA libraries)
@@ -37,6 +52,7 @@ Your project config is in `%APPDATA%\Grumble\projects\my-game.yaml`. Add your ga
 grumble start --project my-game   # press the hotkey (F9) when something matters
 grumble stop                      # or Ctrl+C in the recording window
 grumble process latest            # propose issues with Claude; writes proposals.json
+grumble review latest             # edit, approve and file issues in a local page
 grumble export latest             # write proposals.csv to read in Excel; edits aren't read back
 grumble transcribe latest         # optional: redo the transcript; add --model to compare models
 ```
@@ -53,6 +69,9 @@ with a GPU, or `small.en` (about 500 MB) without one.
 - `grumble process` sends the transcript, marker details, game state and marker screenshots to
   Anthropic.
 - Screenshots capture your whole game monitor, so anything visible there can be included.
+- Filing an issue sends its text to GitHub. Screenshots you keep are committed to the repo's
+  `grumble-assets` branch and stay there if you delete the issue. In a public repo, anyone can see
+  both, so the review page lets you edit the text and leave out screenshots first.
 - Everything is stored in `%APPDATA%\Grumble`. Set `GRUMBLE_HOME` to use another folder.
 
 ## Session folder

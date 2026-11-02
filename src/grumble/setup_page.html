@@ -76,6 +76,7 @@
 
   <section aria-labelledby="github-title">
     <div class="head"><h2 id="github-title">2. GitHub</h2><span class="state" id="github-state" role="status">Checking...</span></div>
+    <p class="detail" id="github-optional" hidden>Optional for now. You can skip this and connect it later.</p>
     <p class="detail" id="github-detail">Used to file the issues you approve. Nothing is filed without your approval.</p>
     <ul id="github-repos"></ul>
     <button class="quiet" id="github-replace" hidden style="margin-top:12px">Use a different token</button>
@@ -122,9 +123,14 @@
   <p class="detail" id="closed" role="status" hidden>Setup is closed. You can close this tab.</p>
 </main>
 <script>
-  const TOKEN = "__TOKEN__";
   const $ = (id) => document.getElementById(id);
-
+  const TOKEN = "__TOKEN__";
+  const IN_APP = __IN_APP__;
+  if (IN_APP) {
+    $("finish").textContent = "Continue";
+    $("finish").className = "";
+    $("github-optional").hidden = false;
+  }
   async function api(path, value) {
     const options = { headers: { "X-Grumble-Token": TOKEN } };
     if (arguments.length > 1) {
@@ -274,6 +280,7 @@
 
   $("finish").addEventListener("click", async () => {
     await api("/api/finish", "");
+    if (IN_APP) { location.href = "/"; return; }
     $("finish").disabled = true;
     $("closed").hidden = false;
   });

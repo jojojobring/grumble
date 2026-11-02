@@ -4,6 +4,7 @@ Every chunk except the last holds exactly chunk_seconds of audio, so a chunk's
 index gives its place on the session timeline even if another chunk is damaged.
 """
 
+import ctypes
 import queue
 import threading
 from pathlib import Path
@@ -17,6 +18,11 @@ import soxr
 
 SAMPLE_RATE = 16000
 _LATENCY_SECONDS = 0.1  # also bounds how far a marker can lag the audio timeline
+
+
+def _prepare_audio_thread() -> None:
+    # WASAPI streams only start on a thread with COM set up, which PortAudio does only for its importer.
+    ctypes.windll.ole32.CoInitializeEx(None, 0)
 
 
 def pick_device(name: str | None, devices: list[dict[str, Any]], hostapis: list[dict[str, Any]]) -> int:
@@ -54,11 +60,12 @@ def measure_level(name: str | None, seconds: float = 3.0) -> float:
     index = pick_device(name, devices, list(sd.query_hostapis()))
     info = devices[index]
     rate = int(info["default_samplerate"])
+    _prepare_audio_thread()
     try:
         with sd.InputStream(device=index, samplerate=rate, channels=min(2, info["max_input_channels"]), dtype="float32") as stream:
             data, _ = stream.read(int(seconds * rate))
     except sd.PortAudioError as error:
-        raise RuntimeError(f"Could not open mic '{info['name']}': {error}") from error
+        raise RuntimeError(f"Could not open mic '{info['name']}'. Check that it's connected, or choose another one. ({error})") from error
     return float(np.abs(data).max(initial=0.0))
 
 
@@ -181,6 +188,7 @@ class Recorder:
         return peak
 
     def start(self) -> None:
+        _prepare_audio_thread()
         try:
             self._stream = sd.InputStream(
                 device=self._device,
@@ -193,7 +201,7 @@ class Recorder:
             self._thread.start()
             self._stream.start()
         except sd.PortAudioError as error:
-            raise RuntimeError(f"Could not open mic '{self.device_name}': {error}") from error
+            raise RuntimeError(f"Could not open mic '{self.device_name}'. Check that it's connected, or choose another one in Setup. ({error})") from error
 
     def stop(self) -> None:
         if self._stream is not None:

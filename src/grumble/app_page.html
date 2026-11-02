@@ -1,0 +1,422 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Grumble</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f6f5f2; --card: #ffffff; --text: #22211f; --muted: #6b6862; --line: #dedbd4;
+    --accent: #2f5fd0; --accent-text: #ffffff; --good: #1d7a46; --bad: #b3362b; --warn-bg: #fbf1d9; --warn-text: #6d5310; --rec: #c62f25;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1a1a18; --card: #252523; --text: #ecebe7; --muted: #a5a29b; --line: #3b3a36;
+      --accent: #7ba0f5; --accent-text: #10131a; --good: #5cc98b; --bad: #f0887c; --warn-bg: #3a3119; --warn-text: #ecd591; --rec: #ee6a5f;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.5 "Segoe UI", system-ui, sans-serif; }
+  main { max-width: 720px; margin: 0 auto; padding: 28px 16px 56px; }
+  header { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 20px; }
+  h1 { font-size: 28px; margin: 0; }
+  nav { display: flex; gap: 14px; font-size: 14px; }
+  section { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 20px; margin-bottom: 16px; }
+  h2 { font-size: 18px; margin: 0 0 8px; }
+  h3 { font-size: 15px; margin: 18px 0 6px; }
+  .detail { color: var(--muted); font-size: 14px; margin: 4px 0 0; overflow-wrap: anywhere; }
+  label { display: block; font-size: 14px; font-weight: 600; margin: 14px 0 4px; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  input, select, textarea { flex: 1 1 240px; min-width: 0; width: 100%; padding: 9px 11px; font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; }
+  .row input, .row select { width: auto; }
+  textarea { resize: vertical; min-height: 72px; }
+  button { padding: 9px 16px; font: inherit; font-weight: 600; border-radius: 6px; border: 1px solid var(--accent); background: var(--accent); color: var(--accent-text); cursor: pointer; }
+  button.quiet { background: transparent; color: var(--accent); }
+  button.link { background: none; border: none; padding: 0; color: var(--accent); font-weight: 400; font-size: 14px; text-decoration: underline; }
+  button:disabled { opacity: .55; cursor: default; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  #main-button { font-size: 19px; padding: 13px 30px; }
+  #main-button.stop { background: var(--rec); border-color: var(--rec); }
+  .hotkey { display: inline-block; font: 600 13px/1 Consolas, monospace; padding: 5px 8px; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 5px; background: var(--bg); }
+  .hotkey-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; font-size: 14px; margin-top: 12px; }
+  .hotkey-row .keys { display: flex; align-items: center; gap: 8px; }
+  .status { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 14px; font-size: 15px; }
+  .clock { font-variant-numeric: tabular-nums; font-weight: 600; font-size: 22px; }
+  .meter { flex: 1 1 120px; height: 8px; background: var(--bg); border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
+  .meter div { height: 100%; width: 0; background: var(--good); }
+  .error { color: var(--bad); font-size: 14px; margin: 8px 0 0; }
+  .note { background: var(--warn-bg); color: var(--warn-text); font-size: 14px; border-radius: 6px; padding: 8px 11px; margin: 12px 0 0; }
+  .issue { border-top: 1px solid var(--line); padding: 10px 0; }
+  .issue strong { display: block; }
+  .tag { display: inline-block; font-size: 12px; font-weight: 600; color: var(--muted); margin-right: 8px; text-transform: capitalize; }
+  ul.plain { list-style: none; margin: 0; padding: 0; }
+  ul.plain li { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; border-top: 1px solid var(--line); padding: 8px 0; font-size: 14px; }
+  pre { white-space: pre-wrap; overflow-wrap: anywhere; font: 13px/1.5 Consolas, monospace; max-height: 360px; overflow: auto; background: var(--bg); padding: 10px; border-radius: 6px; }
+  details summary { cursor: pointer; font-size: 14px; color: var(--accent); margin-top: 10px; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Grumble</h1>
+    <nav><a href="/setup" style="color:var(--accent)">Setup</a><button class="link" id="quit">Quit</button></nav>
+  </header>
+
+  <section aria-labelledby="game-title">
+    <h2 id="game-title">Your game</h2>
+    <div id="no-project" hidden><p class="detail">Choose the folder your game's project is in. Grumble keeps a separate set of sessions for each game.</p></div>
+    <div class="row" id="project-row" hidden>
+      <select id="project" aria-label="Game"></select>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <button class="quiet" id="pick">Choose game folder...</button>
+    </div>
+    <form id="path-form" class="row" style="margin-top:8px">
+      <input id="path" aria-label="Or type a folder path" placeholder="Or paste a folder path" spellcheck="false">
+      <button class="quiet" type="submit">Add</button>
+    </form>
+    <p class="error" id="project-error" role="alert" hidden></p>
+    <details id="settings" hidden>
+      <summary>Game settings</summary>
+      <p class="detail" id="folder"></p>
+      <label for="description">What's the game? <span class="detail">Helps sort your comments.</span></label>
+      <input id="description">
+      <label for="vocabulary">Game terms, separated by commas <span class="detail">Character and item names that get misheard.</span></label>
+      <textarea id="vocabulary"></textarea>
+      <label for="repo">GitHub repo for issues <span class="detail">Optional, as owner/name.</span></label>
+      <input id="repo" spellcheck="false">
+      <div class="row" style="margin-top:12px"><button id="save-settings">Save settings</button><span class="detail" id="settings-saved" role="status"></span></div>
+      <p class="error" id="settings-error" role="alert" hidden></p>
+    </details>
+  </section>
+
+  <section aria-labelledby="run-title">
+    <h2 id="run-title">Session</h2>
+    <button id="main-button">Start session</button>
+    <div class="status" id="recording" hidden>
+      <span class="clock" id="clock">00:00</span>
+      <div class="meter" role="img" aria-label="Mic level"><div id="meter"></div></div>
+      <span id="marker-count">0 markers</span>
+    </div>
+    <p class="detail" id="stage" role="status"></p>
+    <p class="note" id="warning" hidden></p>
+    <p class="error" id="run-error" role="alert" hidden></p>
+    <div class="hotkey-row">
+      <span>Start or stop a session</span>
+      <span class="keys"><span class="hotkey" id="session-key"></span><button class="link" data-capture="session">Change</button></span>
+    </div>
+    <div class="hotkey-row" id="marker-row" hidden>
+      <span>Mark "this matters" and take a screenshot</span>
+      <span class="keys"><span class="hotkey" id="marker-key"></span><button class="link" data-capture="marker">Change</button></span>
+    </div>
+    <p class="note" id="capture-prompt" role="status" hidden>Press the new key combination. Press Esc to cancel.</p>
+    <p class="error" id="hotkey-error" role="alert" hidden></p>
+  </section>
+
+  <section id="results-section" aria-labelledby="results-title" hidden>
+    <h2 id="results-title">Results</h2>
+    <p class="detail" id="results-summary"></p>
+    <div class="row" style="margin-top:10px" id="results-actions">
+      <button id="review">Review and file issues</button>
+      <button class="quiet" id="open-csv">Open in spreadsheet</button>
+      <button class="quiet" id="open-folder">Open session folder</button>
+      <button class="quiet" id="rerun">Run again</button>
+    </div>
+    <p class="error" id="results-error" role="alert" hidden></p>
+    <div id="issues"></div>
+    <details id="transcript-box" hidden><summary>Transcript</summary><pre id="transcript"></pre></details>
+  </section>
+
+  <section id="history-section" aria-labelledby="history-title" hidden>
+    <h2 id="history-title">Past sessions</h2>
+    <ul class="plain" id="history"></ul>
+  </section>
+</main>
+<script>
+  const $ = (id) => document.getElementById(id);
+  const TOKEN = "__TOKEN__";
+  let current = null;
+  let shownSession = null;
+  let lastStage = null;
+  let capturing = null;
+
+  async function api(path, body) {
+    const options = { headers: { "X-Grumble-Token": TOKEN } };
+    if (body !== undefined) {
+      options.method = "POST";
+      options.headers["Content-Type"] = "application/json";
+      options.body = JSON.stringify(body);
+    }
+    const response = await fetch(path, options);
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Something went wrong.");
+    return data;
+  }
+
+  function show(id, text) {
+    $(id).textContent = text || "";
+    $(id).hidden = !text;
+  }
+
+  const prettyKey = (key) => key.split("+").map((part) => part.length <= 3 ? part.toUpperCase() : part[0].toUpperCase() + part.slice(1)).join("+");
+  const clock = (seconds) => String(Math.floor(seconds / 60)).padStart(2, "0") + ":" + String(seconds % 60).padStart(2, "0");
+  const selectedProject = () => current && current.projects.find((project) => project.name === current.selected);
+  const busy = (stage) => ["recording", "transcribing", "proposing"].includes(stage);
+
+  function fillSettings(project) {
+    if ($("settings").dataset.project === project.name) return;
+    $("settings").dataset.project = project.name;
+    $("folder").textContent = project.folder ? "Folder: " + project.folder : "";
+    $("description").value = project.description || "";
+    $("vocabulary").value = project.vocabulary.join(", ");
+    $("repo").value = project.repo || "";
+    $("settings-saved").textContent = "";
+  }
+
+  function render(data) {
+    current = data;
+    const project = selectedProject();
+    const select = $("project");
+    const names = data.projects.map((item) => item.name).join("|");
+    if (select.dataset.names !== names) {
+      select.dataset.names = names;
+      select.replaceChildren(...data.projects.map((item) => {
+        const option = document.createElement("option");
+        option.value = item.name;
+        option.textContent = item.name;
+        return option;
+      }));
+    }
+    if (data.selected) select.value = data.selected;
+    $("no-project").hidden = !!project;
+    $("project-row").hidden = !project;
+    $("settings").hidden = !project;
+    $("marker-row").hidden = !project;
+    if (project) {
+      fillSettings(project);
+      $("marker-key").textContent = prettyKey(project.hotkey);
+    }
+    $("session-key").textContent = prettyKey(data.session_hotkey);
+    if (data.hotkey_error) show("hotkey-error", "The start and stop key isn't working: " + data.hotkey_error);
+
+    const state = data.state;
+    const recording = state.stage === "recording";
+    const button = $("main-button");
+    button.textContent = recording ? "Stop session" : "Start session";
+    button.className = recording ? "stop" : "";
+    button.disabled = !project || state.stage === "transcribing" || state.stage === "proposing";
+    select.disabled = busy(state.stage);
+    $("pick").disabled = busy(state.stage);
+
+    $("recording").hidden = !recording;
+    if (recording) {
+      $("clock").textContent = clock(state.elapsed || 0);
+      const db = state.level > 0 ? 20 * Math.log10(state.level) : -90;
+      $("meter").style.width = Math.max(0, Math.min(100, (db + 60) / 60 * 100)) + "%";
+      const count = state.markers || 0;
+      $("marker-count").textContent = count + (count === 1 ? " marker" : " markers");
+    }
+
+    const stageText = {
+      recording: state.mic ? "Recording from " + state.mic + ". You can switch to your game." : "Starting...",
+      transcribing: "Transcribing on this PC. The first time also downloads the speech model, which can take several minutes.",
+      proposing: "Asking Claude to sort your comments into issues...",
+    }[state.stage] || (project ? "" : "Choose your game folder to get started.");
+    $("stage").textContent = stageText;
+
+    let warning = "";
+    if (recording && state.no_signal) warning = "No signal from your mic. Check that it's on and not muted, or choose another one in Setup.";
+    else if (recording && state.screenshot_warning) warning = "The last screenshot came out black. Set your game to borderless windowed.";
+    else if (state.stage === "done" && state.note) warning = state.note;
+    else if (!data.has_claude_key && !busy(state.stage) && project) warning = "No Claude API key yet, so you'll get a transcript but no proposed issues. Add one in Setup.";
+    show("warning", warning);
+    show("run-error", state.stage === "error" ? state.error : "");
+
+    if (state.stage !== lastStage) {
+      if (state.stage === "done" && state.session) openSession(state.session);
+      lastStage = state.stage;
+    }
+
+    const history = data.sessions;
+    $("history-section").hidden = !history.length;
+    const signature = JSON.stringify(history);
+    if ($("history").dataset.signature !== signature) {
+      $("history").dataset.signature = signature;
+      $("history").replaceChildren(...history.map((item) => {
+        const row = document.createElement("li");
+        const left = document.createElement("span");
+        const date = new Date(item.started_at);
+        const minutes = item.duration ? Math.max(1, Math.round(item.duration / 60)) + " min" : "not finished";
+        const outcome = item.issues !== null ? item.issues + (item.issues === 1 ? " issue" : " issues") : (item.has_transcript ? "transcript only" : "no transcript");
+        left.textContent = date.toLocaleString([], { dateStyle: "medium", timeStyle: "short" }) + " · " + minutes + " · " + outcome;
+        const view = document.createElement("button");
+        view.className = "link";
+        view.textContent = "View";
+        view.setAttribute("aria-label", "View session from " + date.toLocaleString());
+        view.addEventListener("click", () => openSession(item.id));
+        row.append(left, view);
+        return row;
+      }));
+    }
+  }
+
+  async function refresh() {
+    try {
+      render(await api("/api/app"));
+    } catch (error) {
+      show("run-error", "Grumble has stopped running. Open it again from its shortcut.");
+    }
+  }
+
+  async function openSession(id) {
+    shownSession = id;
+    show("results-error", "");
+    try {
+      const details = await api("/api/session/" + id);
+      const proposals = details.proposals;
+      $("results-section").hidden = false;
+      $("open-csv").hidden = !proposals;
+      $("review").hidden = !proposals;
+      if (proposals) {
+        const issues = proposals.new_issues.length;
+        const unsure = proposals.uncertain.length;
+        $("results-summary").textContent = issues + (issues === 1 ? " proposed issue, " : " proposed issues, ") + unsure + " uncertain, " + proposals.discarded.count + " lines discarded. Nothing has been filed anywhere.";
+      } else {
+        $("results-summary").textContent = "No proposed issues for this session yet.";
+      }
+      const blocks = [];
+      for (const issue of (proposals ? proposals.new_issues : [])) blocks.push(issueBlock(issue.title, issue.type + " · " + issue.severity, issue.description));
+      for (const item of (proposals ? proposals.uncertain : [])) blocks.push(issueBlock(item.summary, "Uncertain", item.why_uncertain));
+      $("issues").replaceChildren(...blocks);
+      $("transcript-box").hidden = !details.transcript;
+      $("transcript").textContent = details.transcript || "";
+    } catch (error) { show("run-error", error.message); }
+  }
+
+  function issueBlock(title, tag, description) {
+    const block = document.createElement("div");
+    block.className = "issue";
+    const label = document.createElement("span");
+    label.className = "tag";
+    label.textContent = tag;
+    const heading = document.createElement("strong");
+    heading.textContent = title;
+    const text = document.createElement("span");
+    text.className = "detail";
+    text.textContent = description;
+    block.append(label, heading, text);
+    return block;
+  }
+
+  async function addFolder(folder) {
+    show("project-error", "");
+    try {
+      await api("/api/project/add", { folder });
+      $("path").value = "";
+      $("settings").dataset.project = "";
+      await refresh();
+    } catch (error) { show("project-error", error.message); }
+  }
+
+  $("pick").addEventListener("click", async () => {
+    show("project-error", "");
+    $("pick").disabled = true;
+    try {
+      const { folder } = await api("/api/folder/pick", {});
+      if (folder) await addFolder(folder);
+    } catch (error) { show("project-error", error.message); }
+    $("pick").disabled = false;
+  });
+
+  $("path-form").addEventListener("submit", (event) => {
+    event.preventDefault();
+    addFolder($("path").value);
+  });
+
+  $("project").addEventListener("change", async (event) => {
+    await api("/api/project/select", { name: event.target.value });
+    $("results-section").hidden = true;
+    await refresh();
+  });
+
+  $("save-settings").addEventListener("click", async () => {
+    show("settings-error", "");
+    $("settings-saved").textContent = "";
+    try {
+      await api("/api/project/update", {
+        name: current.selected,
+        description: $("description").value,
+        vocabulary: $("vocabulary").value,
+        repo: $("repo").value,
+      });
+      $("settings-saved").textContent = "Saved";
+      await refresh();
+    } catch (error) { show("settings-error", error.message); }
+  });
+
+  $("main-button").addEventListener("click", async () => {
+    show("run-error", "");
+    try {
+      await api(current.state.stage === "recording" ? "/api/session/stop" : "/api/session/start", {});
+      await refresh();
+    } catch (error) { show("run-error", error.message); }
+  });
+
+  document.querySelectorAll("[data-capture]").forEach((button) => {
+    button.addEventListener("click", () => {
+      capturing = button.dataset.capture;
+      show("hotkey-error", "");
+      $("capture-prompt").hidden = false;
+    });
+  });
+
+  document.addEventListener("keydown", async (event) => {
+    if (!capturing) return;
+    event.preventDefault();
+    if (event.key === "Escape") { capturing = null; $("capture-prompt").hidden = true; return; }
+    if (["Control", "Shift", "Alt", "Meta"].includes(event.key)) return;
+    const parts = [];
+    if (event.ctrlKey) parts.push("ctrl");
+    if (event.altKey) parts.push("alt");
+    if (event.shiftKey) parts.push("shift");
+    parts.push(event.key.toLowerCase());
+    const value = parts.join("+");
+    const target = capturing;
+    capturing = null;
+    $("capture-prompt").hidden = true;
+    try {
+      if (target === "session") await api("/api/hotkey", { value });
+      else await api("/api/project/update", { name: current.selected, hotkey: value });
+      await refresh();
+    } catch (error) { show("hotkey-error", error.message); }
+  });
+
+  $("review").addEventListener("click", () => { location.href = "/review/" + shownSession; });
+  $("open-csv").addEventListener("click", () => api("/api/session/open", { id: shownSession, what: "csv" }).catch((error) => show("results-error", error.message)));
+  $("open-folder").addEventListener("click", () => api("/api/session/open", { id: shownSession, what: "folder" }).catch((error) => show("results-error", error.message)));
+  $("rerun").addEventListener("click", async () => {
+    show("results-error", "");
+    try {
+      await api("/api/session/rerun", { id: shownSession });
+      await refresh();
+    } catch (error) { show("results-error", error.message); }
+  });
+
+  $("quit").addEventListener("click", async () => {
+    try {
+      await api("/api/quit", {});
+      clearInterval(poller);
+      clearInterval(pinger);
+      document.querySelector("main").textContent = "Grumble has closed. You can close this window.";
+    } catch (error) { show("run-error", error.message); }
+  });
+
+  const poller = setInterval(refresh, 1000);
+  const pinger = setInterval(() => api("/api/ping", {}).catch(() => {}), 15000);
+  api("/api/ping", {}).catch(() => {});
+  refresh();
+</script>
+</body>
+</html>

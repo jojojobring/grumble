@@ -258,9 +258,9 @@ def call_model(content: list[dict[str, Any]], model: str) -> tuple[dict[str, Any
         # The SDK raises this when it finds no credentials at all.
         if "authentication" not in str(error).lower():
             raise
-        raise SynthesisError("No Claude API key found. Run `grumble setup` to add one.") from error
+        raise SynthesisError("No Claude API key found. Add one on the Setup page, or with `grumble setup`.") from error
     except anthropic.AuthenticationError as error:
-        raise SynthesisError("The Anthropic API rejected the key. Run `grumble setup` to replace it.") from error
+        raise SynthesisError("The Anthropic API rejected the key. Replace it on the Setup page, or with `grumble setup`.") from error
     except anthropic.NotFoundError as error:
         raise SynthesisError(f"Model '{model}' was not found. Check GRUMBLE_MODEL.") from error
     except anthropic.RateLimitError as error:
