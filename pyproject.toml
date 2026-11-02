@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "grumble"
-version = "0.2.0"
+version = "0.2.1"
 description = "Talk while you playtest, and get proposed bug reports and feature requests"
 readme = "README.md"
 license = "MIT"
@@ -46,7 +46,7 @@ Repository = "https://github.com/jojojobring/grumble"
 where = ["src"]
 
 [tool.setuptools.package-data]
-grumble = ["*.html", "*.yaml"]
+grumble = ["*.html", "*.ico", "*.yaml"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

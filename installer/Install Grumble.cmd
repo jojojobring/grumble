@@ -10,7 +10,7 @@ $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
-$version = '0.2.0'
+$version = '0.2.1'
 $uvVersion = '0.13.6'
 $uvHash = 'A2A8820D5EEA32F08EF467EF3B7F66883A9B076D5737A2FC2FBB5F458D1BB50F'
 $pythonVersion = '3.14'
@@ -59,9 +59,11 @@ try {
     }
 
     # Compiling now keeps the first launch from sitting for half a minute with nothing on screen.
-    & $uv tool install --force --compile-bytecode --python $pythonVersion --quiet "grumble$extra @ $source"
+    Write-Host 'This can take a few minutes. Progress shows below.'
+    & $uv tool install --force --compile-bytecode --python $pythonVersion "grumble$extra @ $source"
     if ($LASTEXITCODE -ne 0) { throw "The install failed with code $LASTEXITCODE. Check your internet connection and run this again." }
 
+    Write-Host 'Removing temporary download files...'
     & $uv cache clean --quiet
     Write-Host '[3/3] Creating shortcuts...'
     $target = Join-Path $root 'bin\grumble-app.exe'
@@ -70,6 +72,7 @@ try {
     foreach ($folder in @($desktop, $startMenu)) {
         $shortcut = $shell.CreateShortcut((Join-Path $folder 'Grumble.lnk'))
         $shortcut.TargetPath = $target
+        $shortcut.IconLocation = Join-Path $root 'tools\grumble\Lib\site-packages\grumble\grumble.ico'
         $shortcut.Description = 'Talk while you playtest and get proposed issues'
         $shortcut.Save()
     }

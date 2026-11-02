@@ -16,6 +16,13 @@ from grumble.setup_ui import make_handler
 from tests.helpers import request
 
 
+def test_every_page_and_the_shortcut_have_the_icon():
+    package = Path(recorder.__file__).parent
+    assert (package / "grumble.ico").read_bytes().startswith(b"\x00\x00\x01\x00")
+    for page in ("app_page.html", "review_page.html", "setup_page.html"):
+        assert '<link rel="icon" type="image/png" href="data:image/png;base64,' in (package / page).read_text(encoding="utf-8")
+
+
 @pytest.fixture
 def home(tmp_path, monkeypatch):
     monkeypatch.setenv("GRUMBLE_HOME", str(tmp_path / "home"))
