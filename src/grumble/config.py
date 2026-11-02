@@ -13,7 +13,7 @@ from grumble.hotkey import parse_hotkey
 
 _TEMPLATE = Path(__file__).with_name("project_template.yaml")
 _PROJECT_NAME = re.compile(r"[A-Za-z0-9_-]+")
-_REPO_NAME = re.compile(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+")
+REPO_NAME = re.compile(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+")
 
 
 def home() -> Path:
@@ -70,6 +70,7 @@ class GameStateConfig:
 class ProjectConfig:
     name: str
     description: str = ""
+    folder: str = ""
     hotkey: str = "f9"
     vocabulary: list[str] = field(default_factory=list)
     tracker: TrackerConfig = field(default_factory=TrackerConfig)
@@ -137,7 +138,7 @@ def projects_dir() -> Path:
 def create_project(name: str, repo: str | None = None, directory: Path | None = None) -> Path:
     if not _PROJECT_NAME.fullmatch(name):
         raise ConfigError("Project names can only use letters, numbers, - and _.")
-    if repo and not _REPO_NAME.fullmatch(repo):
+    if repo and not REPO_NAME.fullmatch(repo):
         raise ConfigError("The repo must look like owner/name.")
     directory = directory or projects_dir()
     path = directory / f"{name}.yaml"
@@ -166,6 +167,61 @@ def load_project(name: str, directory: Path | None = None) -> ProjectConfig:
     return config
 
 
+def list_projects(directory: Path | None = None) -> list[ProjectConfig]:
+    directory = directory or projects_dir()
+    projects = []
+    for path in sorted(directory.glob("*.yaml")):
+        try:
+            projects.append(load_project(path.stem, directory))
+        except ConfigError:
+            continue  # shown when someone tries to use it
+    return projects
+
+
+def detect_github_repo(folder: Path) -> str | None:
+    """Read owner/name from the folder's git remote, if it has a GitHub one."""
+    try:
+        text = (folder / ".git" / "config").read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return None
+    match = re.search(r"github\.com[:/]([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+?)(?:\.git)?\s*$", text, re.MULTILINE)
+    return match.group(1) if match else None
+
+
+def project_for_folder(folder: Path, directory: Path | None = None) -> ProjectConfig:
+    """Return the project for a game folder, creating it the first time."""
+    directory = directory or projects_dir()
+    resolved = str(folder.resolve())
+    for project in list_projects(directory):
+        if project.folder and Path(project.folder) == Path(resolved):
+            return project
+
+    base = re.sub(r"[^a-z0-9]+", "-", folder.resolve().name.lower()).strip("-") or "game"
+    name, suffix = base, 1
+    while (directory / f"{name}.yaml").exists():
+        suffix += 1
+        name = f"{base}-{suffix}"
+    create_project(name, detect_github_repo(folder), directory)
+    return update_project(name, {"folder": resolved}, directory)
+
+
+def update_project(name: str, changes: dict[str, Any], directory: Path | None = None) -> ProjectConfig:
+    """Apply top-level changes and rewrite the file. Sections merge rather than replace."""
+    directory = directory or projects_dir()
+    path = directory / f"{name}.yaml"
+    if not _PROJECT_NAME.fullmatch(name) or not path.exists():
+        raise ConfigError(f"No project named '{name}'.")
+    data = yaml.safe_load(path.read_text(encoding="utf-8"))
+    for key, value in changes.items():
+        if isinstance(value, dict) and isinstance(data.get(key), dict):
+            data[key] = {**data[key], **value}
+        else:
+            data[key] = value
+    parse_config(data, str(path))
+    path.write_text(yaml.safe_dump(data, sort_keys=False, allow_unicode=True), encoding="utf-8")
+    return load_project(name, directory)
+
+
 def _read_settings() -> dict[str, Any]:
     try:
         data = yaml.safe_load((home() / "settings.yaml").read_text(encoding="utf-8"))
@@ -174,15 +230,23 @@ def _read_settings() -> dict[str, Any]:
     return data if isinstance(data, dict) else {}
 
 
+def get_setting(key: str, default: Any = None) -> Any:
+    return _read_settings().get(key, default)
+
+
+def save_setting(key: str, value: Any) -> None:
+    home().mkdir(parents=True, exist_ok=True)
+    text = yaml.safe_dump({**_read_settings(), key: value})
+    (home() / "settings.yaml").write_text(text, encoding="utf-8")
+
+
 def default_mic() -> str | None:
     """The mic for projects that don't name their own. None means the Windows default."""
     return _read_settings().get("mic") or None
 
 
 def save_default_mic(name: str | None) -> None:
-    home().mkdir(parents=True, exist_ok=True)
-    text = yaml.safe_dump({**_read_settings(), "mic": name})
-    (home() / "settings.yaml").write_text(text, encoding="utf-8")
+    save_setting("mic", name)
 
 
 def projects_with_own_mic(directory: Path | None = None) -> list[dict[str, str]]:

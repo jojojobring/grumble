@@ -1,0 +1,308 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Review issues - Grumble</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f6f5f2; --card: #ffffff; --text: #22211f; --muted: #6b6862; --line: #dedbd4;
+    --accent: #2f5fd0; --accent-text: #ffffff; --good: #1d7a46; --bad: #b3362b; --warn-bg: #fbf1d9; --warn-text: #6d5310;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1a1a18; --card: #252523; --text: #ecebe7; --muted: #a5a29b; --line: #3b3a36;
+      --accent: #7ba0f5; --accent-text: #10131a; --good: #5cc98b; --bad: #f0887c; --warn-bg: #3a3119; --warn-text: #ecd591;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.5 "Segoe UI", system-ui, sans-serif; }
+  main { max-width: 760px; margin: 0 auto; padding: 28px 16px 56px; }
+  h1 { font-size: 28px; margin: 0 0 4px; }
+  h2 { font-size: 18px; margin: 0 0 8px; }
+  a { color: var(--accent); }
+  section, article { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 20px; margin-bottom: 16px; }
+  article.approved { border-color: var(--good); }
+  article.rejected { opacity: .7; }
+  .detail { color: var(--muted); font-size: 14px; margin: 4px 0 0; overflow-wrap: anywhere; }
+  label { display: block; font-size: 14px; font-weight: 600; margin: 12px 0 4px; }
+  input[type=text], select, textarea { width: 100%; padding: 9px 11px; font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; }
+  textarea { resize: vertical; min-height: 170px; font-size: 15px; }
+  .fields { display: flex; gap: 12px; flex-wrap: wrap; }
+  .fields > div { flex: 1 1 150px; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 14px; }
+  .spread { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  button { padding: 9px 16px; font: inherit; font-weight: 600; border-radius: 6px; border: 1px solid var(--accent); background: var(--accent); color: var(--accent-text); cursor: pointer; }
+  button.quiet { background: transparent; color: var(--accent); }
+  button:disabled { opacity: .55; cursor: default; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .state { font-size: 13px; font-weight: 600; color: var(--muted); }
+  .state.approved, .state.filed { color: var(--good); }
+  .error { color: var(--bad); font-size: 14px; margin: 8px 0 0; }
+  .note { background: var(--warn-bg); color: var(--warn-text); font-size: 14px; border-radius: 6px; padding: 8px 11px; margin: 12px 0 0; }
+  .shots { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 4px; }
+  .shots label { font-weight: 400; margin: 0; flex: 0 1 220px; }
+  .shots img { display: block; width: 100%; min-height: 60px; border: 1px solid var(--line); border-radius: 6px; margin-bottom: 4px; }
+  ul.lines { margin: 8px 0 0; padding: 0; list-style: none; font-size: 14px; }
+  ul.lines li { border-top: 1px solid var(--line); padding: 6px 0; overflow-wrap: anywhere; }
+  details summary { cursor: pointer; }
+  #bar { position: sticky; bottom: 0; background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px 20px; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+  <a id="back" href="/" hidden>Back to Grumble</a>
+  <h1>Review issues</h1>
+  <p class="detail" id="subtitle"></p>
+  <p class="error" id="load-error" role="alert" hidden></p>
+  <section id="target-box" hidden aria-label="Where issues will go">
+    <p id="target" style="margin:0"></p>
+    <p class="note" id="target-note" hidden></p>
+  </section>
+  <p class="note" id="previous" hidden></p>
+  <div id="items"></div>
+  <section id="audit" hidden>
+    <h2>Left out by Claude</h2>
+    <p class="detail">Check here if something you said is missing. These lines aren't filed anywhere.</p>
+    <details id="unsorted-box" hidden><summary class="detail">Lines Claude didn't sort</summary><ul class="lines" id="unsorted"></ul></details>
+    <details id="discarded-box" hidden><summary class="detail">Discarded lines</summary><ul class="lines" id="discarded"></ul></details>
+  </section>
+  <div id="bar" hidden>
+    <div class="spread">
+      <span id="count" role="status"></span>
+      <span class="row" style="margin:0">
+        <button class="quiet" id="export">Save approved to a file</button>
+        <button id="file">File</button>
+      </span>
+    </div>
+    <p class="error" id="file-error" role="alert" hidden></p>
+  </div>
+</main>
+<script>
+  const $ = (id) => document.getElementById(id);
+  const TOKEN = "__TOKEN__";
+  const IN_APP = __IN_APP__;
+  const SESSION = location.pathname.split("/").pop();
+  let state = null;
+  let target = null;
+  let filing = false;
+  const pending = new Set();
+
+  async function api(path, body) {
+    const options = { headers: { "X-Grumble-Token": TOKEN } };
+    if (body !== undefined) {
+      options.method = "POST";
+      options.headers["Content-Type"] = "application/json";
+      options.body = JSON.stringify(body);
+    }
+    const response = await fetch(path, options);
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Something went wrong.");
+    return data;
+  }
+
+  function show(id, text) {
+    $(id).textContent = text || "";
+    $(id).hidden = !text;
+  }
+
+  function element(tag, properties, ...children) {
+    const node = Object.assign(document.createElement(tag), properties || {});
+    node.append(...children);
+    return node;
+  }
+
+  const fileName = (path) => path.split(/[\\/]/).pop();
+  const stateText = { pending: "Not decided", approved: "Approved", rejected: "Rejected", filing: "Not confirmed yet", filed: "Filed" };
+
+  function field(labelText, control) {
+    control.id = "field-" + Math.random().toString(36).slice(2);
+    return element("div", null, element("label", { htmlFor: control.id, textContent: labelText }), control);
+  }
+
+  function select(options, value) {
+    const control = element("select");
+    control.append(...options.map((option) => element("option", { value: option, textContent: option })));
+    control.value = value;
+    return control;
+  }
+
+  async function save(item, changes, card) {
+    const error = card.querySelector(".item-error");
+    error.hidden = true;
+    const request = api("/api/review/save", { session: SESSION, item: item.id, changes });
+    pending.add(request);
+    try {
+      const updated = await request;
+      Object.assign(item, updated);
+      if ("status" in changes) card.replaceWith(renderItem(item));
+      updateBar();
+    } catch (problem) {
+      error.textContent = problem.message;
+      error.hidden = false;
+    } finally {
+      pending.delete(request);
+    }
+  }
+
+  function renderShots(item, card) {
+    const box = element("div", { className: "shots" });
+    for (const path of item.screenshots) {
+      const name = fileName(path);
+      const image = element("img", { alt: "Screenshot " + name });
+      api("/api/review/" + SESSION + "/shot/" + encodeURIComponent(name)).then((shot) => { image.src = shot.data; }).catch(() => { image.alt = "Couldn't load " + name; });
+      const check = element("input", { type: "checkbox", checked: item.include.includes(path) });
+      check.addEventListener("change", () => {
+        const include = [...box.querySelectorAll("input")].filter((input) => input.checked).map((input) => input.dataset.path);
+        save(item, { include }, card);
+      });
+      check.dataset.path = path;
+      box.append(element("label", null, image, check, " Include this screenshot"));
+    }
+    return box;
+  }
+
+  function renderItem(item) {
+    const card = element("article", { className: item.status });
+    const heading = element("div", { className: "spread" },
+      element("h2", { textContent: item.status === "filed" || item.status === "rejected" ? item.title : (item.kind === "uncertain" ? "Claude wasn't sure about this" : "Proposed issue") }),
+      element("span", { className: "state " + item.status, textContent: stateText[item.status] }));
+    card.append(heading);
+
+    if (item.status === "filed") {
+      const link = element("a", { href: item.url, target: "_blank", rel: "noopener", textContent: "Open issue #" + item.number + " on GitHub" });
+      card.append(element("p", { style: "margin:0" }, link));
+    } else if (item.status === "rejected") {
+      card.append(element("div", { className: "row" }, stateButton(item, card, "Undo", "pending", "quiet")));
+    } else {
+      const locked = item.status === "filing";
+      const title = element("input", { type: "text", value: item.title, maxLength: 256, disabled: locked });
+      const type = select(state.types, item.type);
+      const severity = select(state.severities, item.severity);
+      const body = element("textarea", { value: item.body, disabled: locked });
+      type.disabled = severity.disabled = locked;
+      title.addEventListener("change", () => save(item, { title: title.value }, card));
+      type.addEventListener("change", () => save(item, { type: type.value }, card));
+      severity.addEventListener("change", () => save(item, { severity: severity.value }, card));
+      body.addEventListener("change", () => save(item, { body: body.value }, card));
+      card.append(field("Title", title));
+      card.append(element("div", { className: "fields" }, field("Type", type), field("Severity", severity)));
+      card.append(field("Description, exactly as it will be filed", body));
+      if (item.screenshots.length) {
+        card.append(element("label", { textContent: "Screenshots" }), renderShots(item, card));
+      }
+      if (!locked) {
+        card.append(element("div", { className: "row" },
+          item.status === "approved" ? stateButton(item, card, "Undo approval", "pending", "quiet") : stateButton(item, card, "Approve", "approved", ""),
+          stateButton(item, card, "Reject", "rejected", "quiet")));
+      }
+    }
+    const error = element("p", { className: "error item-error", role: "alert", hidden: !item.error, textContent: item.error || "" });
+    card.append(error);
+    return card;
+  }
+
+  function stateButton(item, card, text, status, className) {
+    const button = element("button", { className, textContent: text });
+    button.setAttribute("aria-label", text + ": " + item.title);
+    button.addEventListener("click", async () => {
+      // Edits save when a field loses focus, which happens just before this click.
+      await Promise.allSettled([...pending]);
+      save(item, { status }, card);
+    });
+    return button;
+  }
+
+  function updateBar() {
+    const ready = state.items.filter((item) => item.status === "approved" || item.status === "filing").length;
+    const filed = state.items.filter((item) => item.status === "filed").length;
+    const undecided = state.items.filter((item) => item.status === "pending").length;
+    $("count").textContent = [ready + " approved", undecided + " not decided", filed + " filed"].join(", ");
+    $("file").textContent = filing ? "Filing..." : "File " + ready + (ready === 1 ? " issue" : " issues") + " on GitHub";
+    $("file").hidden = !(target && target.repo);
+    $("file").disabled = filing || !ready || !(target && target.ready);
+    $("export").disabled = !state.items.some((item) => ["approved", "filing", "filed"].includes(item.status));
+    $("bar").hidden = !state.items.length;
+  }
+
+  function renderTarget() {
+    $("target-box").hidden = false;
+    const box = $("target");
+    box.replaceChildren();
+    const inAppLink = (text, href) => IN_APP ? element("a", { href, textContent: text }) : text;
+    if (target.problem === "no_repo") {
+      box.append("This game has no GitHub repo yet, so you can save approved issues to a file. To file on GitHub, add a repo in ", inAppLink("its settings", "/"), ".");
+    } else if (target.problem === "no_token") {
+      box.append("Issues will go to " + target.repo + ", but GitHub isn't connected yet. Connect it in ", inAppLink("Setup", "/setup"), ".");
+    } else if (target.problem) {
+      box.append("Issues can't be filed on " + target.repo + " right now. " + (target.detail || ""));
+    } else {
+      box.append("Approved issues will be filed on " + target.repo + ". Nothing is filed until you press File.");
+      if (!target.private) {
+        show("target-note", "This repo is public. Anyone can read what you file, and included screenshots show your whole game monitor. Screenshots stay in the repo's grumble-assets branch even if you delete the issue.");
+      } else {
+        show("target-note", "Included screenshots are committed to this repo's grumble-assets branch.");
+      }
+    }
+    updateBar();
+  }
+
+  function fillLines(listId, boxId, lines) {
+    $(boxId).hidden = !lines.length;
+    $(listId).replaceChildren(...lines.map((line) => element("li", { textContent: line.text })));
+  }
+
+  async function load() {
+    try {
+      state = await api("/api/review/" + SESSION);
+    } catch (error) {
+      show("load-error", error.message);
+      return;
+    }
+    $("subtitle").textContent = state.project + ", session " + state.session;
+    $("items").replaceChildren(...state.items.map(renderItem));
+    if (!state.items.length) $("items").append(element("section", { textContent: "Claude didn't propose any issues for this session." }));
+    show("previous", state.previously_filed.length ? "Before Grumble re-ran this session, you filed: " + state.previously_filed.map((item) => "#" + item.number + " " + item.title).join("; ") + ". Don't approve these again." : "");
+    fillLines("unsorted", "unsorted-box", state.unsorted);
+    fillLines("discarded", "discarded-box", state.discarded);
+    $("audit").hidden = !state.unsorted.length && !state.discarded.length;
+    updateBar();
+  }
+
+  $("file").addEventListener("click", async () => {
+    show("file-error", "");
+    filing = true;
+    updateBar();
+    await Promise.allSettled([...pending]);
+    try {
+      await api("/api/review/file", { session: SESSION });
+    } catch (error) {
+      show("file-error", error.message);
+    }
+    filing = false;
+    await load();
+  });
+
+  $("export").addEventListener("click", async () => {
+    show("file-error", "");
+    await Promise.allSettled([...pending]);
+    try {
+      await api("/api/review/export", { session: SESSION });
+    } catch (error) {
+      show("file-error", error.message);
+    }
+  });
+
+  if (IN_APP) {
+    $("back").hidden = false;
+    // Without these the app would think its window had closed.
+    const ping = () => api("/api/ping", {}).catch(() => {});
+    setInterval(ping, 15000);
+    ping();
+  }
+  load().then(() => api("/api/review/" + SESSION + "/target")).then((data) => { target = data; renderTarget(); }).catch((error) => show("load-error", error.message));
+</script>
+</body>
+</html>

@@ -68,6 +68,12 @@ def cmd_export(args: argparse.Namespace) -> None:
     print(f"Wrote {count} row(s) to {path}")
 
 
+def cmd_review(args: argparse.Namespace) -> None:
+    from grumble.review_ui import run_review
+
+    run_review(resolve_session(args.session), open_browser=not args.no_browser, port=args.port)
+
+
 def cmd_init(args: argparse.Namespace) -> None:
     path = create_project(args.name, args.repo)
     print(f"Created {path}\nAdd your game's terms to it, then run: grumble start --project {args.name}")
@@ -114,6 +120,12 @@ def build_parser() -> argparse.ArgumentParser:
     export = commands.add_parser("export", help="write proposals to a CSV for reading in a spreadsheet")
     export.add_argument("session", nargs="?", default="latest", help="session folder name (default: latest)")
     export.set_defaults(func=cmd_export)
+
+    review = commands.add_parser("review", help="approve, edit and file proposed issues in a local page")
+    review.add_argument("session", nargs="?", default="latest", help="session folder name (default: latest)")
+    review.add_argument("--no-browser", action="store_true", help="print the address instead of opening it")
+    review.add_argument("--port", type=int, default=0, help="port to use (default: any free port)")
+    review.set_defaults(func=cmd_review)
 
     init = commands.add_parser("init", help="create a project config")
     init.add_argument("name")

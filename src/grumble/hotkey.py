@@ -31,6 +31,12 @@ def parse_hotkey(text: str) -> tuple[int, int]:
     raise ValueError(f"Unknown hotkey key '{key}' in '{text}'")
 
 
+def is_safe_global_hotkey(text: str) -> bool:
+    """A global hotkey takes its key from every app, so a bare letter would stop typing it."""
+    modifiers, key = parse_hotkey(text)
+    return modifiers != 0 or 0x70 <= key <= 0x87
+
+
 class Hotkey:
     def __init__(self, text: str, callback: Callable[[], None]):
         self._text = text
